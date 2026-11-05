@@ -152,8 +152,8 @@ export class SessionManager extends EventEmitter {
     return this.channel(windowId).getSnapshot();
   }
 
-  public async sendPrompt(text: string, windowId?: string, images?: PromptImage[], files?: PromptFile[]): Promise<void> {
-    await this.channel(windowId).sendPrompt(text, images, files);
+  public async sendPrompt(text: string, windowId?: string, images?: PromptImage[], files?: PromptFile[], model?: string): Promise<void> {
+    await this.channel(windowId).sendPrompt(text, images, files, model);
   }
 
   public async approve(id: string, response?: string, option?: ApprovalOption, windowId?: string): Promise<void> {

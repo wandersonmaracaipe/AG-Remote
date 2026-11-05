@@ -1,17 +1,41 @@
 import http from 'http';
+import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import selfsigned from 'selfsigned';
 import { SessionManager } from '../core/session-manager.ts';
 import { WebSocketServer } from './websocket.ts';
 import { handlePhoneApi } from './api.ts';
 import type { AdapterEvent } from '../core/types.ts';
 import type { WaitingPhone } from '../relay-host/relay-host.ts';
+import { dataDir } from '../core/data-dir.ts';
 
 export interface ServerOptions {
   port?: number;
   host?: string;
   pwaDir?: string;
+  tls?: boolean;
+}
+
+export async function getOrCreateTlsCert(): Promise<{ cert: string; key: string }> {
+  const dir = dataDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const certFile = path.join(dir, 'server.cert');
+  const keyFile = path.join(dir, 'server.key');
+  if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
+    try {
+      return {
+        cert: fs.readFileSync(certFile, 'utf8'),
+        key: fs.readFileSync(keyFile, 'utf8')
+      };
+    } catch (_) {}
+  }
+  const attrs = [{ name: 'commonName', value: 'Antigravity Remote' }];
+  const pems: any = await (selfsigned as any).generate(attrs, { days: 365 });
+  fs.writeFileSync(certFile, pems.cert);
+  fs.writeFileSync(keyFile, pems.private);
+  return { cert: pems.cert, key: pems.private };
 }
 
 export interface RelayPhone {
@@ -69,18 +93,20 @@ export function resolvePwaDirectory(explicitDir?: string): string {
 }
 
 export class RemoteServer {
-  private server: http.Server;
+  private server: http.Server | https.Server;
   private wsServer: WebSocketServer;
   private sessionManager: SessionManager;
   private host: string;
   private port: number;
   private pwaDir: string;
+  public readonly isTls: boolean;
 
   constructor(sessionManager: SessionManager, options: ServerOptions = {}) {
     this.sessionManager = sessionManager;
     this.host = options.host || '0.0.0.0'; // Bind to 0.0.0.0 so phone on local Wi-Fi and Tailscale can connect
     this.port = typeof options.port === 'number' ? options.port : 49222;
     this.pwaDir = resolvePwaDirectory(options.pwaDir);
+    this.isTls = options.tls === true;
 
     this.wsServer = new WebSocketServer(this.sessionManager.auth);
 
@@ -98,6 +124,23 @@ export class RemoteServer {
   }
 
   public async start(): Promise<{ port: number; host: string }> {
+    if (this.isTls) {
+      const certs = await getOrCreateTlsCert();
+      this.server.close();
+      this.server = https.createServer({ key: certs.key, cert: certs.cert }, this.handleRequest.bind(this));
+      this.server.on('upgrade', (req, socket, head) => {
+        this.wsServer.handleUpgrade(req, socket, head);
+      });
+      this.server.on('clientError', (err: any, socket: any) => {
+        if (err.code === 'ERR_SSL_HTTP_REQUEST' || (err.message && err.message.includes('http request'))) {
+          const host = this.host === '0.0.0.0' ? '127.0.0.1' : this.host;
+          socket.end(`HTTP/1.1 302 Found\r\nLocation: https://${host}:${this.port}/\r\nConnection: close\r\n\r\n`);
+          return;
+        }
+        socket.destroy(err);
+      });
+    }
+
     // Claim the port before connecting to the IDE: a window that loses the race to host
     // (EADDRINUSE) must not be left with a half-started session.
     await new Promise<void>((resolve, reject) => {
@@ -211,7 +254,8 @@ export class RemoteServer {
           }
           displayHost = `${lanIp}:${this.port}`;
         }
-        const pairingUrl = `http://${displayHost}/pair?t=${code}`;
+        const scheme = this.isTls ? 'https' : 'http';
+        const pairingUrl = `${scheme}://${displayHost}/pair?t=${code}`;
         const { QRCode } = await import('../pairing/qr.ts');
         const matrix = QRCode.generateMatrix(pairingUrl);
         const svg = QRCode.toSvg(matrix, '#000000', '#ffffff');

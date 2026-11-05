@@ -14,10 +14,12 @@ export interface PairingInfo {
 export class PairingManager {
   private auth: AuthManager;
   private serverPort: number;
+  private tls: boolean;
 
-  constructor(auth: AuthManager, serverPort: number = 49222) {
+  constructor(auth: AuthManager, serverPort: number = 49222, tls = false) {
     this.auth = auth;
     this.serverPort = serverPort;
+    this.tls = tls;
   }
 
   public getLocalIps(): string[] {
@@ -52,7 +54,8 @@ export class PairingManager {
   public createPairingSession(customHost?: string): PairingInfo {
     const code = this.auth.generatePairingCode();
     const host = customHost || this.getLocalIps()[0];
-    const url = `http://${host}:${this.serverPort}/pair?t=${code}`;
+    const scheme = this.tls ? 'https' : 'http';
+    const url = `${scheme}://${host}:${this.serverPort}/pair?t=${code}`;
 
     const matrix = QRCode.generateMatrix(url);
     const asciiQr = QRCode.toAscii(matrix);

@@ -59,10 +59,20 @@
   }
   const tokenInput = document.getElementById('tokenInput');
   const btnSaveToken = document.getElementById('btnSaveToken');
+  const btnModelUsage = document.getElementById('btnModelUsage');
+  const modelUsageLabel = document.getElementById('modelUsageLabel');
+  const modelModal = document.getElementById('modelModal');
+  const btnCloseModelModal = document.getElementById('btnCloseModelModal');
+  const statInTokens = document.getElementById('statInTokens');
+  const statOutTokens = document.getElementById('statOutTokens');
+  const statCacheTokens = document.getElementById('statCacheTokens');
+  const modelList = document.getElementById('modelList');
 
   // State
   let token = localStorage.getItem('ag_remote_token') || '';
   let autoPilotEnabled = localStorage.getItem('ag_remote_autopilot') === 'true';
+  let selectedModelId = localStorage.getItem('ag_remote_selected_model') || '';
+  let availableModels = [];
   let ws = null;
   let currentApproval = null;
   let isReconnecting = false;
@@ -100,6 +110,70 @@
     const res = await fetch(path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
     const data = await res.json().catch(() => ({}));
     return { ok: res.ok, status: res.status, data };
+  }
+
+  // Audio & Haptic Notifications (Web Audio API + navigator.vibrate)
+  function playNotificationSound(type) {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const now = ctx.currentTime;
+
+      if (type === 'approval') {
+        // High alert chime
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      } else {
+        // Soft success chime
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.setValueAtTime(880, now + 0.12); // A5
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      }
+    } catch (_) {}
+  }
+
+  function notifyUser(type, title, body) {
+    // 1. Vibration
+    try {
+      if (navigator.vibrate) {
+        if (type === 'approval') {
+          navigator.vibrate([120, 60, 120, 60, 200]);
+        } else {
+          navigator.vibrate([80, 50, 80]);
+        }
+      }
+    } catch (_) {}
+
+    // 2. Audio Chime
+    playNotificationSound(type);
+
+    // 3. Web Notification (if in background / tab hidden)
+    try {
+      if (window.Notification && Notification.permission === 'granted') {
+        new Notification(title || 'Antigravity Remote', {
+          body: body || '',
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-192.png'
+        });
+      }
+    } catch (_) {}
   }
 
   // 1. Token Initialization & Pairing Exchange
@@ -357,21 +431,43 @@
     showToast('Notifications are off.');
   }
 
-  if (relayMode && btnNotify) {
-    btnNotify.classList.remove('hidden');
-    btnNotify.addEventListener('click', () => {
-      if (!pushSupported) {
-        showToast(isIos
-          ? 'On iPhone, notifications need the app on your Home Screen: tap Share, then "Add to Home Screen", and open AG Remote from that icon.'
-          : 'This browser does not support notifications. Try Chrome.');
-        return;
+  if (btnNotify) {
+    if (relayMode || 'Notification' in window) {
+      btnNotify.classList.remove('hidden');
+      if ('Notification' in window && Notification.permission === 'granted') {
+        setBell(true);
       }
-      if (btnNotify.getAttribute('aria-pressed') === 'true') {
-        showToast('Notifications are on.', { label: 'Turn off', run: disableNotifications });
-      } else {
-        enableNotifications();
-      }
-    });
+      btnNotify.addEventListener('click', async () => {
+        if (relayMode) {
+          if (!pushSupported) {
+            showToast(isIos
+              ? 'No iPhone, adicione à Tela de Início para habilitar notificações.'
+              : 'Este navegador não suporta notificações.');
+            return;
+          }
+          if (btnNotify.getAttribute('aria-pressed') === 'true') {
+            showToast('Notificações ativadas.', { label: 'Desativar', run: disableNotifications });
+          } else {
+            enableNotifications();
+          }
+        } else if ('Notification' in window) {
+          if (Notification.permission === 'default') {
+            const p = await Notification.requestPermission();
+            if (p === 'granted') {
+              setBell(true);
+              showToast('Notificações ativadas!');
+              notifyUser('complete', 'Antigravity Remote', 'Notificações habilitadas com sucesso.');
+            } else {
+              showToast('Permissão de notificação negada.');
+            }
+          } else if (Notification.permission === 'granted') {
+            showToast('Notificações locais estão ativadas.');
+          } else {
+            showToast('Notificações bloqueadas nas configurações do navegador.');
+          }
+        }
+      });
+    }
   }
 
   // Tabs: one per open IDE window, each with its own conversation, status and approval.
@@ -656,17 +752,22 @@
       if (visible) {
         showApproval(event.approval);
         updateStatus('awaiting_approval');
+        notifyUser('approval', 'Permissão Necessária', event.approval.description || 'O Antigravity aguarda sua confirmação.');
       } else {
-        showToast(`${t.name} needs you`, { label: 'View', run: () => switchTab(id) });
-        if (navigator.vibrate) navigator.vibrate([30, 60, 30]);
+        showToast(`${t.name} precisa de você`, { label: 'Ver', run: () => switchTab(id) });
+        notifyUser('approval', 'Permissão Necessária', `${t.name}: O Antigravity aguarda sua confirmação.`);
       }
     } else if (event.type === 'status_changed') {
+      const prevStatus = t.status;
       t.status = event.status;
       if (event.status !== 'disconnected') t.lastActivity = Date.now();
       if (event.status !== 'awaiting_approval') t.approval = null;
       if (visible) {
         updateStatus(event.status);
         if (event.status !== 'awaiting_approval') hideApproval();
+      }
+      if (prevStatus === 'generating' && event.status === 'idle') {
+        notifyUser('complete', 'Tarefa Concluída', `${t.name || 'Antigravity'}: Resposta finalizada.`);
       }
     } else if (event.type === 'session_changed') {
       // The IDE moved to another conversation; its messages follow as 'message' events.
@@ -731,6 +832,10 @@
     updateStatus(snapshot.status);
     updateLastActive(snapshot.status, snapshot.lastActivity);
 
+    if (snapshot.modelUsage) {
+      updateModelUsage(snapshot.modelUsage);
+    }
+
     // The empty state lives inside the feed, so keep it when clearing.
     chatFeed.replaceChildren(emptyState);
     if (Array.isArray(snapshot.messages) && snapshot.messages.length > 0) {
@@ -755,11 +860,11 @@
     document.body.dataset.status = status || 'disconnected';
     const labels = {
       'idle': 'Pronto',
-      'generating': 'Trabalhando',
+      'generating': '', // Removido texto "Trabalhando" da barra superior
       'awaiting_approval': 'Aguardando você',
       'disconnected': 'Desconectado'
     };
-    statusText.textContent = customText || labels[status] || status;
+    statusText.textContent = customText !== undefined ? customText : (labels[status] !== undefined ? labels[status] : status);
     renderTypingIndicator(status);
 
     if (status === 'disconnected') {
@@ -777,6 +882,105 @@
     } else {
       btnStop.classList.add('hidden');
     }
+  }
+
+  // Model & Usage Helpers
+  function formatTokenCount(num) {
+    if (!num || isNaN(num)) return '0';
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+    return Number(num).toLocaleString('pt-BR');
+  }
+
+  function updateModelUsage(usage) {
+    if (!usage) return;
+    if (usage.inputTokens !== undefined && statInTokens) {
+      statInTokens.textContent = formatTokenCount(usage.inputTokens);
+    }
+    if (usage.outputTokens !== undefined && statOutTokens) {
+      statOutTokens.textContent = formatTokenCount(usage.outputTokens);
+    }
+    if (usage.cacheReadTokens !== undefined && statCacheTokens) {
+      statCacheTokens.textContent = formatTokenCount(usage.cacheReadTokens);
+    }
+
+    const activeName = usage.modelDisplayName || usage.model;
+    if (activeName && modelUsageLabel) {
+      modelUsageLabel.textContent = activeName;
+      if (!selectedModelId && usage.model) {
+        selectedModelId = usage.model;
+      }
+    }
+  }
+
+  async function loadAvailableModels() {
+    if (!modelList) return;
+    modelList.innerHTML = '<div class="model-loading">Carregando modelos...</div>';
+    try {
+      const res = await api('GET', '/api/models' + (activeTabId ? `?windowId=${encodeURIComponent(activeTabId)}` : ''));
+      if (res.ok && res.data && Array.isArray(res.data.models)) {
+        availableModels = res.data.models;
+        renderModelList();
+      } else {
+        modelList.innerHTML = '<div class="model-error">Falha ao obter lista de modelos.</div>';
+      }
+    } catch (_) {
+      modelList.innerHTML = '<div class="model-error">Erro de conexão ao buscar modelos.</div>';
+    }
+  }
+
+  function renderModelList() {
+    if (!modelList) return;
+    if (!availableModels || availableModels.length === 0) {
+      modelList.innerHTML = '<div class="model-empty">Nenhum modelo customizado retornado. Modelo padrão da IDE em uso.</div>';
+      return;
+    }
+    modelList.innerHTML = '';
+    availableModels.forEach((m) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'model-item' + (selectedModelId === m.id ? ' selected' : '');
+      item.innerHTML = `
+        <div class="model-item-info">
+          <span class="model-item-title">${escapeHtml(m.displayName || m.id)}</span>
+          ${m.description ? `<span class="model-item-desc">${escapeHtml(m.description)}</span>` : ''}
+        </div>
+        <span class="model-item-radio"></span>
+      `;
+      item.addEventListener('click', () => {
+        selectedModelId = m.id;
+        localStorage.setItem('ag_remote_selected_model', m.id);
+        if (modelUsageLabel) {
+          modelUsageLabel.textContent = m.displayName || m.id;
+        }
+        renderModelList();
+        showToast(`Modelo selecionado: ${m.displayName || m.id}`);
+        if (navigator.vibrate) navigator.vibrate(30);
+        setTimeout(() => {
+          modelModal?.classList.add('hidden');
+        }, 220);
+      });
+      modelList.appendChild(item);
+    });
+  }
+
+  if (btnModelUsage) {
+    btnModelUsage.addEventListener('click', () => {
+      modelModal?.classList.remove('hidden');
+      loadAvailableModels();
+    });
+  }
+  if (btnCloseModelModal) {
+    btnCloseModelModal.addEventListener('click', () => {
+      modelModal?.classList.add('hidden');
+    });
+  }
+  if (modelModal) {
+    modelModal.addEventListener('click', (e) => {
+      if (e.target === modelModal) {
+        modelModal.classList.add('hidden');
+      }
+    });
   }
 
   // Tap statusBadge to reconnect when offline or disconnected
@@ -1310,6 +1514,31 @@
       }
       bubble.appendChild(thumbs);
     }
+    if (msg.files?.length) {
+      const filesContainer = document.createElement('div');
+      filesContainer.className = 'chat-files';
+      for (const file of msg.files) {
+        const fileChip = document.createElement('div');
+        fileChip.className = 'chat-file-chip';
+        const isAudio = file.mimeType?.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|webm|aac)$/i.test(file.name);
+        if (isAudio) {
+          fileChip.classList.add('chat-audio-chip');
+          fileChip.innerHTML = `<div style="display:flex;align-items:center;gap:6px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg><span class="chip-name">${escapeHtml(file.name)}</span></div>`;
+          if (file.data || file.url) {
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.src = file.url || (file.data.startsWith('data:') ? file.data : `data:${file.mimeType || 'audio/webm'};base64,${file.data}`);
+            audio.style.marginTop = '6px';
+            audio.style.width = '100%';
+            fileChip.appendChild(audio);
+          }
+        } else {
+          fileChip.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="chip-name">${escapeHtml(file.name)}</span>`;
+        }
+        filesContainer.appendChild(fileChip);
+      }
+      bubble.appendChild(filesContainer);
+    }
     if (msg.text) bubble.appendChild(text);
 
     if (msg.role !== 'user' && msg.text) {
@@ -1685,9 +1914,14 @@
       const item = document.createElement('div');
       if (a.kind === 'file') {
         item.className = 'attach-item file-item';
+        const isAudio = a.mimeType?.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|webm|aac)$/i.test(a.name);
         const icon = document.createElement('div');
         icon.className = 'attach-file-icon';
-        icon.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+        if (isAudio) {
+          icon.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
+        } else {
+          icon.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+        }
         const info = document.createElement('div');
         info.className = 'attach-file-info';
         const name = document.createElement('span');
@@ -1798,6 +2032,7 @@
     const filesToSend = sending.filter(a => a.kind === 'file');
     if (imagesToSend.length) body.images = imagesToSend.map(a => ({ mimeType: a.mimeType, data: a.data }));
     if (filesToSend.length) body.files = filesToSend.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data }));
+    if (selectedModelId) body.model = selectedModelId;
     let failed = false;
     try {
       const res = await api('POST', '/api/prompt', withWindow(body, tabId), sending.length ? 60000 : undefined);
@@ -1918,14 +2153,14 @@
       speechRecognition = new SpeechRec();
       speechRecognition.continuous = true;
       speechRecognition.interimResults = true;
-      speechRecognition.lang = navigator.language || 'en-US';
+      speechRecognition.lang = 'pt-BR';
 
       let baseText = '';
 
       speechRecognition.onstart = () => {
         isListening = true;
         btnMic.classList.add('listening');
-        btnMic.title = 'Listening... tap to stop';
+        btnMic.title = 'Ouvindo... toque para parar';
         baseText = promptInput.value ? promptInput.value.trim() + ' ' : '';
       };
 
@@ -1956,7 +2191,7 @@
       if (!isListening) return;
       isListening = false;
       btnMic.classList.remove('listening');
-      btnMic.title = 'Voice input';
+      btnMic.title = 'Ditado por voz';
       try {
         speechRecognition.stop();
       } catch (_) {}

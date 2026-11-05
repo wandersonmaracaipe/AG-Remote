@@ -384,13 +384,23 @@ export class LsBridge {
    * Sends a follow-up prompt into an existing conversation, reusing its last user config.
    * Images go in the request's `images` field (ImageData{base64Data, mimeType}, read from the LS binary).
    */
-  public async sendPrompt(cascadeId: string, text: string, images: PromptImage[] = []): Promise<void> {
+  public async sendPrompt(cascadeId: string, text: string, images: PromptImage[] = [], model?: string): Promise<void> {
     const traj = await this.getTrajectory(cascadeId);
     if (!traj) throw new LsBridgeError('Conversation not found in the IDE');
     const steps: any[] = traj.steps || [];
-    let cascadeConfig: unknown;
+    let cascadeConfig: any;
     for (let i = steps.length - 1; i >= 0; i--) {
       if (steps[i]?.userInput?.userConfig) { cascadeConfig = steps[i].userInput.userConfig; break; }
+    }
+    if (model) {
+      cascadeConfig = {
+        ...(typeof cascadeConfig === 'object' && cascadeConfig ? cascadeConfig : {}),
+        planModel: model,
+        plannerConfig: {
+          ...(typeof cascadeConfig === 'object' && cascadeConfig?.plannerConfig ? cascadeConfig.plannerConfig : {}),
+          planModel: model
+        }
+      };
     }
     const before = steps.length;
     const items: any[] = [];
@@ -439,6 +449,23 @@ export class LsBridge {
     if (!res) return null;
     this.onConversationsRaw?.(res);
     return parseConversations(res);
+  }
+
+  public async listAvailableModels(): Promise<Array<{ key: string; displayName: string; recommended?: boolean; supportsThinking?: boolean; supportsImages?: boolean }>> {
+    const res = await this.call('GetAvailableModels', {});
+    const raw = res?.response?.models || res?.models || {};
+    const out: Array<{ key: string; displayName: string; recommended?: boolean; supportsThinking?: boolean; supportsImages?: boolean }> = [];
+    for (const [key, val] of Object.entries(raw as Record<string, any>)) {
+      if (val?.isInternal || key.startsWith('chat_') || key.startsWith('tab_')) continue;
+      out.push({
+        key,
+        displayName: val.displayName || key,
+        recommended: !!val.recommended,
+        supportsThinking: !!val.supportsThinking,
+        supportsImages: !!val.supportsImages
+      });
+    }
+    return out;
   }
 
   /** Diagnostics hook: sees the raw response once per call (used to record its shape). */

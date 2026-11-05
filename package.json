@@ -2,7 +2,7 @@
   "name": "ag-remote",
   "displayName": "Antigravity Remote",
   "description": "Controle o agente do Antigravity pelo celular: aprove ou rejeite comandos, envie prompts e prints, pause execuções e receba notificações na rede local.",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "publisher": "wandersonmaracaipe",
   "icon": "assets/icon.png",
   "author": "Wanderson Maracaipe",
@@ -121,6 +121,11 @@
           "type": "string",
           "default": "https://remote.taqnik.in",
           "description": "Hosted relay used when transport is \"both\" or \"relay\"."
+        },
+        "agRemote.tls": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ativar HTTPS local para permitir instalação nativa de PWA e gravação de áudio no Android."
         }
       }
     }
@@ -128,5 +133,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/wandersonmaracaipe/AG-Remote"
+  },
+  "dependencies": {
+    "selfsigned": "^5.5.0"
   }
 }

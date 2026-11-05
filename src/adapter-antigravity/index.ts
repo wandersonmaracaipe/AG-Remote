@@ -288,14 +288,14 @@ export class AntigravityAdapter implements IdeAdapter {
     return { approval, live: this.livePending };
   }
 
-  public async sendPrompt(text: string, images: PromptImage[] = [], files: PromptFile[] = []): Promise<void> {
+  public async sendPrompt(text: string, images: PromptImage[] = [], files: PromptFile[] = [], model?: string): Promise<void> {
     if (typeof text !== 'string' || (text.trim().length === 0 && images.length === 0 && files.length === 0)) {
       throw new Error('Prompt text cannot be empty');
     }
     const cid = this.watcher.getActiveConversationId();
     if (!this.ls) throw new Error(BRIDGE_UNAVAILABLE);
     if (!cid) throw new Error(NO_CONVERSATION);
-    auditLogger.log('PROMPT', { textLength: text.length, preview: text.slice(0, 100), images: images.length, files: files.length, cascadeId: cid });
+    auditLogger.log('PROMPT', { textLength: text.length, preview: text.slice(0, 100), images: images.length, files: files.length, cascadeId: cid, model });
     let prompt = text.trim();
     if (images.length) {
       const paths = saveUploads(this.workspacePath, images, Date.now(), this.config.brainDir, cid);
@@ -315,11 +315,16 @@ export class AntigravityAdapter implements IdeAdapter {
     }
     try {
       // Inline images too, for builds whose agent can see them
-      await this.ls.sendPrompt(cid, prompt, images);
+      await this.ls.sendPrompt(cid, prompt, images, model);
     } catch (err) {
       if (!(err instanceof LsBridgeError && err.imagesRejected)) throw err;
-      await this.ls.sendPrompt(cid, prompt);
+      await this.ls.sendPrompt(cid, prompt, [], model);
     }
+  }
+
+  public async listModels(): Promise<any[]> {
+    if (this.ls) return this.ls.listAvailableModels();
+    return [];
   }
 
   public async approve(id: string, _response?: string, option: ApprovalOption = 'allow_once'): Promise<void> {

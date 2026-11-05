@@ -44,12 +44,22 @@ export interface Approval {
   actions?: ApprovalOption[];
 }
 
+export interface ModelUsage {
+  model?: string;
+  modelDisplayName?: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  totalTokens: number;
+}
+
 export interface SessionSnapshot {
   status: SessionStatus;
   messages: ChatMessage[];
   pendingApproval: Approval | null;
   /** ms since epoch the shown conversation last changed; the phone shows "Last active …" when it's quiet. */
   lastActivity?: number;
+  modelUsage?: ModelUsage;
 }
 
 export type AdapterEvent =
@@ -65,7 +75,7 @@ export interface IdeAdapter {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   getSnapshot(): Promise<SessionSnapshot>;
-  sendPrompt(text: string, images?: PromptImage[], files?: PromptFile[]): Promise<void>;
+  sendPrompt(text: string, images?: PromptImage[], files?: PromptFile[], model?: string): Promise<void>;
   getPendingApproval(): Promise<Approval | null>;
   approve(id: string, response?: string, option?: ApprovalOption): Promise<void>;
   deny(id: string, reason?: string): Promise<void>;

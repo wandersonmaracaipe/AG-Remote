@@ -119,8 +119,17 @@ export async function handlePhoneApi(
     if (!body || typeof body.text !== 'string' || (body.text.trim().length === 0 && images.length === 0 && files.length === 0)) {
       return bad('Body must contain non-empty "text" field or attachments');
     }
-    await sm.sendPrompt(body.text, windowIdOf(body), images, files);
+    const model = typeof body?.model === 'string' && body.model.trim() ? body.model.trim() : undefined;
+    await sm.sendPrompt(body.text, windowIdOf(body), images, files, model);
     return { status: 200, body: { status: 'sent' } };
+  }
+
+  // GET /api/models
+  if (method === 'GET' && pathname === '/api/models') {
+    const winId = searchParams?.get('windowId') || undefined;
+    const channel = sm.channel(winId);
+    const models = (channel as any).listModels ? await (channel as any).listModels() : [];
+    return { status: 200, body: { models } };
   }
 
   // POST /api/approve

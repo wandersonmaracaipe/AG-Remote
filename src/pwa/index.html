@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='6' fill='%23284777'/><g fill='none' stroke='%23d6e3ff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' transform='translate(12 12.5) scale(.75) translate(-12 -11.5)'><path d='M6 19l6-10 6 10'/><path d='M9.5 6.5a3.5 3.5 0 0 1 5 0'/><path d='M7.05 4.05a7 7 0 0 1 9.9 0'/></g></svg>">
   <link rel="preload" href="/fonts/ag-remote-sans.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/app.css?v=16">
+  <link rel="stylesheet" href="/app.css?v=17">
 </head>
 <body data-status="disconnected">
   <div class="app-container">
@@ -31,6 +31,10 @@
         </div>
       </div>
       <div class="header-right">
+        <button id="btnModelUsage" class="model-usage-pill" type="button" title="Modelo da IA e consumo de tokens">
+          <span class="model-usage-dot"></span>
+          <span class="model-usage-label" id="modelUsageLabel">Modelo & Uso</span>
+        </button>
         <button id="btnAutoPilotBadge" class="autopilot-chip hidden" type="button" title="Piloto Automático ativo. Toque para desativar.">
           <span class="autopilot-dot"></span>
           <span class="autopilot-label">Piloto Automático</span>
@@ -104,7 +108,7 @@
         <button type="button" class="btn-attach" id="btnAttach" aria-label="Anexar arquivos" title="Anexar arquivos">
           <svg viewBox="0 -960 960 960" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h320q17 0 28.5 11.5T560-800q0 17-11.5 28.5T520-760H200v560h560v-320q0-17 11.5-28.5T800-560q17 0 28.5 11.5T840-520v320q0 33-23.5 56.5T760-120H200Zm480-560h-40q-17 0-28.5-11.5T600-720q0-17 11.5-28.5T640-760h40v-40q0-17 11.5-28.5T720-840q17 0 28.5 11.5T760-800v40h40q17 0 28.5 11.5T840-720q0 17-11.5 28.5T800-680h-40v40q0 17-11.5 28.5T720-600q-17 0-28.5-11.5T680-640v-40ZM450-320l-74-99q-6-8-16-8t-16 8l-80 107q-8 10-2 21t18 11h400q12 0 18-11t-2-21L586-459q-6-8-16-8t-16 8L450-320Zm30-160Z"/></svg>
         </button>
-        <input type="file" id="attachInput" accept="image/*,.pdf,.txt,.md,.log,.json,.csv,.ts,.js,.py" multiple hidden>
+        <input type="file" id="attachInput" accept="image/*,audio/*,.mp3,.wav,.ogg,.m4a,.webm,.pdf,.txt,.md,.log,.json,.csv,.ts,.js,.py" multiple hidden>
         <textarea
           id="promptInput"
           placeholder="Mensagem para o Antigravity..."
@@ -226,6 +230,36 @@
     <img id="imageModalImg" src="" alt="Imagem ampliada" style="max-width: 95vw; max-height: 92vh; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.7);">
   </div>
 
-  <script src="/app.js?v=22"></script>
+  <!-- Model & Usage Modal -->
+  <div class="modal-backdrop hidden" id="modelModal">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modelModalTitle">
+      <div class="modal-header">
+        <h2 id="modelModalTitle">Modelo & Consumo</h2>
+        <button type="button" class="btn-icon" id="btnCloseModelModal" title="Fechar" aria-label="Fechar">
+          <svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+        </button>
+      </div>
+      <div class="usage-stats-box" id="usageStatsBox">
+        <div class="usage-stat-item">
+          <span class="stat-num" id="statInTokens">0</span>
+          <span class="stat-label">Entrada</span>
+        </div>
+        <div class="usage-stat-item">
+          <span class="stat-num" id="statOutTokens">0</span>
+          <span class="stat-label">Saída</span>
+        </div>
+        <div class="usage-stat-item">
+          <span class="stat-num" id="statCacheTokens">0</span>
+          <span class="stat-label">Cache</span>
+        </div>
+      </div>
+      <div class="model-selection-header">Selecionar Modelo da IA:</div>
+      <div class="model-list" id="modelList">
+        <div class="model-loading">Carregando modelos...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js?v=23"></script>
 </body>
 </html>

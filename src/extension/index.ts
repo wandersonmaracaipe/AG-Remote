@@ -161,7 +161,9 @@ export async function activate(context: vscodeTypes.ExtensionContext): Promise<v
           return;
         }
       }
-      vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${port}/pair/view`));
+      const useTls = vscode.workspace.getConfiguration('agRemote').get<boolean>('tls', true);
+      const scheme = useTls ? 'https' : 'http';
+      vscode.env.openExternal(vscode.Uri.parse(`${scheme}://localhost:${port}/pair/view`));
     }),
     // Allow / Deny links in the pairing panel, and the host window's notification.
     vscode.commands.registerCommand('ag-remote.answerPhone', async (id: unknown, allow: unknown) => {
@@ -253,7 +255,8 @@ export async function activate(context: vscodeTypes.ExtensionContext): Promise<v
       hostWindowId: activeWindowId!,
       createChannel: (workspacePath: string, pid?: number) => new AntigravityAdapter(workspacePath, {}, { lsBridge: bridgeFor(workspacePath, pid) })
     });
-    const srv = new RemoteServer(sm, { port, host, pwaDir });
+    const useTls = vscode.workspace.getConfiguration('agRemote').get<boolean>('tls', true);
+    const srv = new RemoteServer(sm, { port, host, pwaDir, tls: useTls });
     try {
       await srv.start();
     } catch (err: any) {
@@ -263,7 +266,7 @@ export async function activate(context: vscodeTypes.ExtensionContext): Promise<v
     }
     sessionManager = sm;
     server = srv;
-    pairingManager = new PairingManager(sm.auth, port);
+    pairingManager = new PairingManager(sm.auth, port, useTls);
     isHost = true;
     sm.registry.register(identity());
     if (relayOn) await startRelay(sm, srv);

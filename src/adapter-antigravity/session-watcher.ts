@@ -7,6 +7,23 @@ import { type AdapterConfig, defaultConfig } from './config.ts';
 /** A chat whose last line is an unanswered user message stops counting as "generating" after this long. */
 const UNANSWERED_STALE_MS = 10 * 60 * 1000;
 
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  'MODEL_PLACEHOLDER_M318': 'Gemini 3.8 Flash (High)',
+  'gemini-3.8-flash-high': 'Gemini 3.8 Flash (High)',
+  'MODEL_PLACEHOLDER_M35': 'Claude Sonnet 4.6 (Thinking)',
+  'claude-sonnet-4-6': 'Claude Sonnet 4.6 (Thinking)',
+  'MODEL_PLACEHOLDER_M26': 'Claude Opus 4.6 (Thinking)',
+  'claude-opus-4-6-thinking': 'Claude Opus 4.6 (Thinking)',
+  'MODEL_GOOGLE_GEMINI_2_5_PRO': 'Gemini 2.5 Pro',
+  'gemini-2.5-pro': 'Gemini 2.5 Pro',
+  'MODEL_PLACEHOLDER_M18': 'Gemini 3 Flash',
+  'gemini-3-flash': 'Gemini 3 Flash',
+  'MODEL_GOOGLE_GEMINI_2_5_FLASH': 'Gemini 2.5 Flash',
+  'gemini-2.5-flash': 'Gemini 2.5 Flash',
+  'MODEL_OPENAI_GPT_OSS_120B_MEDIUM': 'GPT-OSS 120B',
+  'gpt-oss-120b-medium': 'GPT-OSS 120B'
+};
+
 export class SessionWatcher extends EventEmitter {
   private config: AdapterConfig;
   private currentWorkspace: string;
@@ -354,11 +371,27 @@ export class SessionWatcher extends EventEmitter {
       const messages: ChatMessage[] = [];
       let pendingApproval: Approval | null = null;
       let isGenerating = false;
+      let inTokens = 0;
+      let outTokens = 0;
+      let cacheTokens = 0;
+      let activeModel = '';
 
       for (let i = 0; i < lines.length; i++) {
         try {
           const step = JSON.parse(lines[i]);
           const ts = step.created_at ? new Date(step.created_at).getTime() : Date.now();
+
+          if (step.input_tokens) inTokens = Math.max(inTokens, Number(step.input_tokens));
+          if (step.output_tokens) outTokens = Math.max(outTokens, Number(step.output_tokens));
+          if (step.cache_read_tokens) cacheTokens = Math.max(cacheTokens, Number(step.cache_read_tokens));
+          if (step.modelUsage) {
+            inTokens = Math.max(inTokens, Number(step.modelUsage.inputTokens || 0));
+            outTokens = Math.max(outTokens, Number(step.modelUsage.outputTokens || 0));
+            cacheTokens = Math.max(cacheTokens, Number(step.modelUsage.cacheReadTokens || 0));
+            if (step.modelUsage.model) activeModel = step.modelUsage.model;
+          }
+          if (step.generatorModel) activeModel = step.generatorModel;
+          if (step.userInput?.userConfig?.planModel) activeModel = step.userInput.userConfig.planModel;
 
           if (step.type === 'USER_INPUT') {
             // New user input concludes any preceding tool approvals
@@ -598,11 +631,23 @@ export class SessionWatcher extends EventEmitter {
 
       let lastActivity: number | undefined;
       try { lastActivity = fs.statSync(this.activeTranscriptPath!).mtimeMs; } catch (_) {}
+      
+      const modelDisplayName = activeModel ? (MODEL_DISPLAY_NAMES[activeModel] || activeModel) : undefined;
+      const modelUsage = {
+        model: activeModel || undefined,
+        modelDisplayName,
+        inputTokens: inTokens,
+        outputTokens: outTokens,
+        cacheReadTokens: cacheTokens,
+        totalTokens: inTokens + outTokens
+      };
+
       this.lastSnapshot = {
         status: newStatus,
         messages,
         pendingApproval,
-        lastActivity
+        lastActivity,
+        modelUsage
       };
     } catch (err: any) {
       this.emit('event', { type: 'adapter_error', error: err?.message || 'Error reading session state' } as AdapterEvent);

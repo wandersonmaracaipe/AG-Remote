@@ -56,7 +56,7 @@ async function runTests() {
   assert(indexRes.body.includes('id="btnStop"'), 'index.html contains #btnStop');
   assert(indexRes.body.includes('id="btnReloadApp"'), 'index.html contains #btnReloadApp for hard reload');
   assert(indexRes.body.includes('id="btnMic"'), 'index.html contains #btnMic for voice dictation');
-  assert(indexRes.body.includes('accept="image/*,.pdf,.txt,.md,.log,.json,.csv,.ts,.js,.py"'), 'index.html contains #attachInput with documents and code');
+  assert(indexRes.body.includes('accept="image/*,audio/*,.mp3,.wav,.ogg,.m4a,.webm,.pdf,.txt,.md,.log,.json,.csv,.ts,.js,.py"'), 'index.html contains #attachInput with documents, audio and code');
 
   // 2. GET /app.css
   const cssRes = await fetchUrl('/app.css');
