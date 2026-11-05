@@ -78,20 +78,27 @@
   let isReconnecting = false;
   let reconnectAttempts = 0;
 
+  // Local network hosts (Wi-Fi LAN, Tailscale, localhost, mDNS, IPv4/IPv6)
+  const isLocalHost = (() => {
+    const h = window.location.hostname;
+    if (h === 'localhost' || h === '127.0.0.1' || h === '::1' || h.endsWith('.local') || h.endsWith('.ts.net')) return true;
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(h)) return true;
+    if (h.includes(':')) return true;
+    return false;
+  })();
+
   // Relay mode: opened from a relay QR (/p/<room>#<secret>), or a phone that paired that way before.
   // Everything else (local Wi-Fi, Tailscale) talks to the PC's own server with the session token.
   const RELAY_ROOM_KEY = 'ag_remote_relay_room';
   let relayRoom = (() => {
     const m = window.location.pathname.match(/^\/p\/([A-Za-z0-9_-]{22})\/?$/);
     if (m) return m[1];
+    if (isLocalHost) return null; // Local server never defaults to relay
     if (window.location.protocol !== 'https:') return null;
     try { return localStorage.getItem(RELAY_ROOM_KEY); } catch (_) { return null; }
   })();
   let relayMode = !!relayRoom;
-  const isRelayHost = window.location.protocol === 'https:' &&
-    !window.location.hostname.endsWith('.ts.net') &&
-    window.location.hostname !== 'localhost' &&
-    window.location.hostname !== '127.0.0.1';
+  const isRelayHost = window.location.protocol === 'https:' && !isLocalHost;
   let relay = null; // RelayLink (relay-link.js) in relay mode
 
   /** Paired with a PC (it may still be unreachable right now). */
@@ -2400,14 +2407,14 @@
 
     // 3. Wi-Fi 6-digit PIN flow (local LAN / Tailscale)
     if (!/^\d{6}$/.test(cleanCode)) {
-      showPairError(isRelayHost ? 'Enter a 6-character pairing code or link.' : 'Enter the 6-digit PIN shown on your PC.');
+      showPairError(isRelayHost ? 'Digite o código de 6 caracteres ou o link.' : 'Digite o PIN de 6 dígitos exibido no seu computador.');
       tokenInput.focus();
       return;
     }
 
     pairError.classList.add('hidden');
     btnSaveToken.disabled = true;
-    btnSaveToken.textContent = 'Connecting...';
+    btnSaveToken.textContent = 'Conectando...';
 
     try {
       const pairRes = await fetch(`/pair?t=${encodeURIComponent(cleanCode)}`, {
@@ -2425,15 +2432,15 @@
         }
         startApp();
       } else if (!data.error || data.error.startsWith('Invalid')) {
-        showPairError('That PIN is not valid. Each PIN works once, and scanning the QR code uses it. Click AG-Remote on your PC for a fresh PIN.');
+        showPairError('Esse PIN não é válido ou já foi usado. Clique em AG-Remote no computador para ver um novo PIN.');
       } else {
         showPairError(data.error);
       }
     } catch (err) {
-      showPairError('Could not reach your PC. Check that the phone is on the same Wi-Fi.');
+      showPairError('Não foi possível conectar ao computador. Verifique se o Antigravity está aberto e na mesma rede Wi-Fi.');
     } finally {
       btnSaveToken.disabled = false;
-      btnSaveToken.textContent = 'Connect';
+      btnSaveToken.textContent = 'Conectar';
     }
   }
 
