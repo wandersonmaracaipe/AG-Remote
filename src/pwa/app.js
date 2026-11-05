@@ -44,6 +44,19 @@
   const toastMessage = document.getElementById('toastMessage');
   const toastClose = document.getElementById('toastClose');
   const pairingModal = document.getElementById('pairingModal');
+  const imageModal = document.getElementById('imageModal');
+  const imageModalImg = document.getElementById('imageModalImg');
+  if (imageModal) {
+    imageModal.addEventListener('click', () => {
+      imageModal.classList.add('hidden');
+    });
+  }
+  function openImageModal(src) {
+    if (imageModal && imageModalImg) {
+      imageModalImg.src = src;
+      imageModal.classList.remove('hidden');
+    }
+  }
   const tokenInput = document.getElementById('tokenInput');
   const btnSaveToken = document.getElementById('btnSaveToken');
 
@@ -1287,6 +1300,12 @@
         const img = document.createElement('img');
         img.src = src;
         img.alt = 'Imagem anexada';
+        img.title = 'Toque para ampliar';
+        img.style.cursor = 'pointer';
+        img.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openImageModal(src);
+        });
         thumbs.appendChild(img);
       }
       bubble.appendChild(thumbs);

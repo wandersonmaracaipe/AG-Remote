@@ -10,12 +10,14 @@ export interface ChatMessage {
   role: 'user' | 'agent' | 'step';
   text: string;
   ts: number;
+  images?: string[];
 }
 
 /** An image attached to a prompt from the phone; data is base64 without a data: prefix. */
 export interface PromptImage {
   mimeType: string;
   data: string;
+  uri?: string;
 }
 
 /** A file (PDF, text, code, log) attached to a prompt from the phone; data is base64 without a data: prefix. */

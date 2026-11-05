@@ -1085,6 +1085,12 @@ body[data-status="disconnected"] .empty-state { visibility: hidden; }
   max-height: 160px;
   border-radius: var(--shape-md);
   object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.chat-images img:active {
+  transform: scale(0.97);
+  opacity: 0.85;
 }
 
 /* Snackbar: sits above every layer, including dialogs */

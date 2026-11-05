@@ -369,12 +369,50 @@ export class SessionWatcher extends EventEmitter {
               if (full) content = full;
             }
             const match = content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
-            const text = match ? match[1].trim() : content.slice(0, 500);
+            let text = match ? match[1].trim() : content.slice(0, 500);
+            text = text.replace(/\n\nI attached an? \d* images? from my phone\. Open (?:it|them) to (?:see|inspect).*$/s, '').trim();
+
+            const images: string[] = [];
+            if (Array.isArray(step.media)) {
+              for (const m of step.media) {
+                if (m.data || m.base64Data) {
+                  const mime = m.mime_type || m.mimeType || 'image/png';
+                  images.push(`data:${mime};base64,${m.data || m.base64Data}`);
+                } else if (m.uri && fs.existsSync(m.uri)) {
+                  try {
+                    const ext = path.extname(m.uri).toLowerCase().replace('.', '');
+                    const mime = m.mime_type || m.mimeType || (ext === 'jpg' ? 'image/jpeg' : `image/${ext || 'png'}`);
+                    const data = fs.readFileSync(m.uri).toString('base64');
+                    images.push(`data:${mime};base64,${data}`);
+                  } catch (_) {}
+                }
+              }
+            }
+
+            if (images.length === 0) {
+              const uploadMatches = content.matchAll(/(?:The user has uploaded \d+ image\(s\):|I attached an? \d* images? from my phone[^\n]*)\s*\n((?:(?:- |\s*)\S+\n?)+)/g);
+              for (const um of uploadMatches) {
+                const pathMatches = um[0].matchAll(/(?:- |\s+)(\S+\.(?:png|jpe?g|webp|gif))/gi);
+                for (const pm of pathMatches) {
+                  const p = pm[1].trim();
+                  if (p && fs.existsSync(p)) {
+                    try {
+                      const ext = path.extname(p).toLowerCase().replace('.', '');
+                      const mime = ext === 'jpg' ? 'image/jpeg' : `image/${ext || 'png'}`;
+                      const data = fs.readFileSync(p).toString('base64');
+                      images.push(`data:${mime};base64,${data}`);
+                    } catch (_) {}
+                  }
+                }
+              }
+            }
+
             messages.push({
               id: `msg-${step.step_index}`,
               role: 'user',
               text,
-              ts
+              ts,
+              images: images.length > 0 ? images : undefined
             });
             // If user input is the last step, agent is likely generating, unless the file has been quiet
             // for a while (a chat that ended on an error or a closed window). Used only without a live status.
@@ -404,12 +442,33 @@ export class SessionWatcher extends EventEmitter {
               const full = this.getFullContent(i, step.step_index);
               if (full) content = full;
             }
-            if (content) {
+
+            let agentImages: string[] | undefined;
+            if (Array.isArray(step.media) && step.media.length > 0) {
+              const imgs: string[] = [];
+              for (const m of step.media) {
+                if (m.data || m.base64Data) {
+                  const mime = m.mime_type || m.mimeType || 'image/png';
+                  imgs.push(`data:${mime};base64,${m.data || m.base64Data}`);
+                } else if (m.uri && fs.existsSync(m.uri)) {
+                  try {
+                    const ext = path.extname(m.uri).toLowerCase().replace('.', '');
+                    const mime = m.mime_type || m.mimeType || (ext === 'jpg' ? 'image/jpeg' : `image/${ext || 'png'}`);
+                    const data = fs.readFileSync(m.uri).toString('base64');
+                    imgs.push(`data:${mime};base64,${data}`);
+                  } catch (_) {}
+                }
+              }
+              if (imgs.length > 0) agentImages = imgs;
+            }
+
+            if (content || agentImages) {
               messages.push({
                 id: `msg-${step.step_index}`,
                 role: 'agent',
                 text: content,
-                ts
+                ts,
+                images: agentImages
               });
             } else if (Array.isArray(step.tool_calls) && step.tool_calls.length > 0) {
               const stepActions: string[] = [];

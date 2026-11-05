@@ -16,7 +16,7 @@ const UPLOAD_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
  * (Oct 2026) accepts inline images without error but never shows them to the model. The folder
  * ignores itself in git, and uploads older than a week are removed. Returns absolute paths.
  */
-export function saveUploads(workspacePath: string, images: PromptImage[], now = Date.now()): string[] {
+export function saveUploads(workspacePath: string, images: PromptImage[], now = Date.now(), brainDir?: string, cascadeId?: string): string[] {
   const root = path.join(workspacePath, '.ag-remote');
   const dir = path.join(root, 'uploads');
   fs.mkdirSync(dir, { recursive: true });
@@ -28,9 +28,33 @@ export function saveUploads(workspacePath: string, images: PromptImage[], now = 
       if (now - fs.statSync(p).mtimeMs > UPLOAD_MAX_AGE_MS) fs.rmSync(p);
     } catch (_) {}
   }
+
+  let userUploadedDir: string | null = null;
+  if (brainDir && cascadeId) {
+    try {
+      userUploadedDir = path.join(brainDir, cascadeId, '.user_uploaded');
+      fs.mkdirSync(userUploadedDir, { recursive: true });
+    } catch (_) {}
+  }
+
   return images.map((img, i) => {
-    const file = path.join(dir, `${now}-${i + 1}.${IMAGE_EXT[img.mimeType] || 'img'}`);
-    fs.writeFileSync(file, Buffer.from(img.data, 'base64'));
+    const ext = IMAGE_EXT[img.mimeType] || 'img';
+    const hex = Math.random().toString(16).slice(2, 10);
+    const file = path.join(dir, `${now}-${i + 1}.${ext}`);
+    const buf = Buffer.from(img.data, 'base64');
+    fs.writeFileSync(file, buf);
+
+    if (userUploadedDir) {
+      try {
+        const brainFile = path.join(userUploadedDir, `media_${now}_${hex}.${ext}`);
+        fs.writeFileSync(brainFile, buf);
+        img.uri = brainFile.replace(/\\/g, '/');
+      } catch (_) {
+        img.uri = file.replace(/\\/g, '/');
+      }
+    } else {
+      img.uri = file.replace(/\\/g, '/');
+    }
     return file;
   });
 }
@@ -274,7 +298,7 @@ export class AntigravityAdapter implements IdeAdapter {
     auditLogger.log('PROMPT', { textLength: text.length, preview: text.slice(0, 100), images: images.length, files: files.length, cascadeId: cid });
     let prompt = text.trim();
     if (images.length) {
-      const paths = saveUploads(this.workspacePath, images);
+      const paths = saveUploads(this.workspacePath, images, Date.now(), this.config.brainDir, cid);
       auditLogger.log('PROMPT_IMAGES_SAVED', { paths });
       const note = images.length === 1
         ? `I attached an image from my phone. Open it to see it: ${paths[0]}`

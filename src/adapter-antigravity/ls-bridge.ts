@@ -393,11 +393,28 @@ export class LsBridge {
       if (steps[i]?.userInput?.userConfig) { cascadeConfig = steps[i].userInput.userConfig; break; }
     }
     const before = steps.length;
+    const items: any[] = [];
+    if (text) {
+      items.push({ text });
+    }
+    for (const img of images) {
+      items.push({
+        media: {
+          mimeType: img.mimeType,
+          uri: img.uri || '',
+          inlineData: {
+            mimeType: img.mimeType,
+            data: img.data
+          }
+        }
+      });
+    }
+
     try {
       await this.call('SendUserCascadeMessage', {
         cascadeId,
-        items: text ? [{ text }] : [],
-        ...(images.length ? { images: images.map(i => ({ base64Data: i.data, mimeType: i.mimeType })) } : {}),
+        items,
+        ...(images.length ? { images: images.map(i => ({ base64Data: i.data, mimeType: i.mimeType, ...(i.uri ? { uri: i.uri } : {}) })) } : {}),
         ...(cascadeConfig ? { cascadeConfig } : {})
       }, true);
     } catch (err) {

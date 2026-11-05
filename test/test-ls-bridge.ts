@@ -240,7 +240,8 @@ async function run() {
   state.calls = [];
   await bridge.sendPrompt(CASCADE, '', [{ mimeType: 'image/png', data: 'AAAA' }]);
   const imgOnly = state.calls.find(c => c.method === 'SendUserCascadeMessage');
-  assert(Array.isArray(imgOnly?.body.items) && imgOnly.body.items.length === 0, 'image-only prompt sends no empty text item');
+  assert(Array.isArray(imgOnly?.body.items) && !imgOnly.body.items.some(i => i.text !== undefined), 'image-only prompt sends no empty text item');
+  assert(!!imgOnly?.body.items?.[0]?.media, 'image-only prompt includes media item');
 
   state.rejectImages = true;
   try {
