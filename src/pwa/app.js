@@ -735,9 +735,13 @@
       if (existingIdx >= 0) {
         t.messages[existingIdx] = event.message;
         if (visible) {
-          const existingBubble = chatFeed.querySelector(`[data-msg-id="${event.message.id}"]`);
-          if (existingBubble) {
-            existingBubble.replaceWith(buildChatMessageElement(event.message));
+          if (event.message.role === 'step') {
+            appendStepMessage(event.message, false);
+          } else {
+            const existingBubble = chatFeed.querySelector(`[data-msg-id="${event.message.id}"]`);
+            if (existingBubble) {
+              existingBubble.replaceWith(buildChatMessageElement(event.message));
+            }
           }
         }
       } else {
@@ -772,8 +776,14 @@
       if (visible) {
         updateStatus(event.status);
         if (event.status !== 'awaiting_approval') hideApproval();
+        if (event.status !== 'generating') {
+          const lastGroup = getLastStepsGroup();
+          if (lastGroup) markStepsGroupFinished(lastGroup);
+        }
       }
       if (prevStatus === 'generating' && event.status === 'idle') {
+        const lastGroup = getLastStepsGroup();
+        if (lastGroup) markStepsGroupFinished(lastGroup);
         notifyUser('complete', 'Tarefa Concluída', `${t.name || 'Antigravity'}: Resposta finalizada.`);
       }
     } else if (event.type === 'session_changed') {
@@ -855,6 +865,11 @@
     renderTypingIndicator(snapshot.status);
     scrollToBottom();
 
+    if (snapshot.status !== 'generating') {
+      const lastGroup = getLastStepsGroup();
+      if (lastGroup) markStepsGroupFinished(lastGroup);
+    }
+
     if (snapshot.pendingApproval) {
       showApproval(snapshot.pendingApproval);
     } else {
@@ -873,6 +888,11 @@
     };
     statusText.textContent = customText !== undefined ? customText : (labels[status] !== undefined ? labels[status] : status);
     renderTypingIndicator(status);
+
+    if (status !== 'generating') {
+      const lastGroup = getLastStepsGroup();
+      if (lastGroup) markStepsGroupFinished(lastGroup);
+    }
 
     if (status === 'disconnected') {
       statusBadge.title = 'Toque para reconectar';
@@ -1476,21 +1496,102 @@
     }
   }
 
-  function buildChatMessageElement(msg) {
-    if (msg.role === 'step') {
-      const stepItem = document.createElement('div');
-      stepItem.className = 'chat-step-item';
-      stepItem.dataset.msgId = msg.id;
-      const lines = (msg.text || '').split('\n').filter(Boolean);
-      for (const line of lines) {
-        const lineEl = document.createElement('div');
-        lineEl.className = 'chat-step-line';
-        renderInline(lineEl, line);
-        stepItem.appendChild(lineEl);
+  function getLastStepsGroup() {
+    const typing = document.getElementById('chatTyping');
+    let el = typing ? typing.previousElementSibling : chatFeed.lastElementChild;
+    while (el && (el === emptyState || el.id === 'chatTyping')) {
+      el = el.previousElementSibling;
+    }
+    if (el && el.classList.contains('chat-steps-group') && !el.classList.contains('finished')) {
+      return el;
+    }
+    return null;
+  }
+
+  function appendStepMessage(msg, shouldScroll = true) {
+    const lines = (msg.text || '').split('\n').filter(Boolean);
+    if (lines.length === 0) return;
+
+    let group = getLastStepsGroup();
+    const typing = document.getElementById('chatTyping');
+
+    if (!group) {
+      group = document.createElement('div');
+      group.className = 'chat-steps-group';
+      group.dataset.stepCount = '0';
+
+      const summary = document.createElement('div');
+      summary.className = 'chat-steps-summary';
+      summary.title = 'Toque para ver o histórico de ações';
+      summary.innerHTML = `
+        <div class="chat-steps-left">
+          <span class="chat-steps-icon">
+            <span class="chat-steps-spinner"></span>
+          </span>
+          <span class="chat-steps-current-text"></span>
+          <span class="chat-steps-count-badge"></span>
+        </div>
+        <div class="chat-steps-chevron">
+          <svg viewBox="0 -960 960 960" width="16" height="16" fill="currentColor"><path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/></svg>
+        </div>
+      `;
+
+      const details = document.createElement('div');
+      details.className = 'chat-steps-details hidden';
+
+      summary.addEventListener('click', () => {
+        const isHidden = details.classList.contains('hidden');
+        details.classList.toggle('hidden', !isHidden);
+        group.classList.toggle('expanded', isHidden);
+      });
+
+      group.appendChild(summary);
+      group.appendChild(details);
+
+      if (typing) {
+        chatFeed.insertBefore(group, typing);
+      } else {
+        chatFeed.appendChild(group);
       }
-      return stepItem;
     }
 
+    const details = group.querySelector('.chat-steps-details');
+    const currentTextEl = group.querySelector('.chat-steps-current-text');
+    const countBadgeEl = group.querySelector('.chat-steps-count-badge');
+
+    let count = parseInt(group.dataset.stepCount || '0', 10);
+
+    for (const line of lines) {
+      if (msg.id && details.querySelector(`[data-step-id="${msg.id}"]`)) {
+        continue;
+      }
+      count++;
+      const lineEl = document.createElement('div');
+      lineEl.className = 'chat-step-line';
+      if (msg.id) lineEl.dataset.stepId = msg.id;
+      renderInline(lineEl, line);
+      details.appendChild(lineEl);
+
+      currentTextEl.innerHTML = '';
+      renderInline(currentTextEl, line);
+    }
+
+    group.dataset.stepCount = String(count);
+    countBadgeEl.textContent = count > 1 ? `${count} ações` : '';
+
+    if (shouldScroll) scrollToBottom();
+  }
+
+  function markStepsGroupFinished(group) {
+    if (!group || group.classList.contains('finished')) return;
+    group.classList.add('finished');
+    const iconSpan = group.querySelector('.chat-steps-icon');
+    if (iconSpan) {
+      iconSpan.innerHTML = '<svg viewBox="0 -960 960 960" width="15" height="15" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>';
+    }
+  }
+
+  function buildChatMessageElement(msg) {
     const bubble = document.createElement('div');
     bubble.className = `chat-message ${msg.role === 'user' ? 'user' : 'agent'}`;
     bubble.dataset.msgId = msg.id;
@@ -1569,6 +1670,16 @@
   function appendChatMessage(msg, shouldScroll = true) {
     if (!msg || (!msg.text && !msg.images?.length)) return;
     emptyState.classList.add('hidden');
+
+    if (msg.role === 'step') {
+      appendStepMessage(msg, shouldScroll);
+      return;
+    }
+
+    const lastGroup = getLastStepsGroup();
+    if (lastGroup) {
+      markStepsGroupFinished(lastGroup);
+    }
 
     const bubble = buildChatMessageElement(msg);
     const typing = document.getElementById('chatTyping');

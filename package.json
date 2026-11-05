@@ -2,7 +2,7 @@
   "name": "ag-remote",
   "displayName": "Antigravity Remote",
   "description": "Controle o agente do Antigravity pelo celular: aprove ou rejeite comandos, envie prompts e prints, pause execuções e receba notificações na rede local.",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "publisher": "wandersonmaracaipe",
   "icon": "assets/icon.png",
   "author": "Wanderson Maracaipe",
