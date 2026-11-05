@@ -59,20 +59,10 @@
   }
   const tokenInput = document.getElementById('tokenInput');
   const btnSaveToken = document.getElementById('btnSaveToken');
-  const btnModelUsage = document.getElementById('btnModelUsage');
-  const modelUsageLabel = document.getElementById('modelUsageLabel');
-  const modelModal = document.getElementById('modelModal');
-  const btnCloseModelModal = document.getElementById('btnCloseModelModal');
-  const statInTokens = document.getElementById('statInTokens');
-  const statOutTokens = document.getElementById('statOutTokens');
-  const statCacheTokens = document.getElementById('statCacheTokens');
-  const modelList = document.getElementById('modelList');
 
   // State
   let token = localStorage.getItem('ag_remote_token') || '';
   let autoPilotEnabled = localStorage.getItem('ag_remote_autopilot') === 'true';
-  let selectedModelId = localStorage.getItem('ag_remote_selected_model') || '';
-  let availableModels = [];
   let ws = null;
   let currentApproval = null;
   let isReconnecting = false;
@@ -849,10 +839,6 @@
     updateStatus(snapshot.status);
     updateLastActive(snapshot.status, snapshot.lastActivity);
 
-    if (snapshot.modelUsage) {
-      updateModelUsage(snapshot.modelUsage);
-    }
-
     // The empty state lives inside the feed, so keep it when clearing.
     chatFeed.replaceChildren(emptyState);
     if (Array.isArray(snapshot.messages) && snapshot.messages.length > 0) {
@@ -909,105 +895,6 @@
     } else {
       btnStop.classList.add('hidden');
     }
-  }
-
-  // Model & Usage Helpers
-  function formatTokenCount(num) {
-    if (!num || isNaN(num)) return '0';
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
-    return Number(num).toLocaleString('pt-BR');
-  }
-
-  function updateModelUsage(usage) {
-    if (!usage) return;
-    if (usage.inputTokens !== undefined && statInTokens) {
-      statInTokens.textContent = formatTokenCount(usage.inputTokens);
-    }
-    if (usage.outputTokens !== undefined && statOutTokens) {
-      statOutTokens.textContent = formatTokenCount(usage.outputTokens);
-    }
-    if (usage.cacheReadTokens !== undefined && statCacheTokens) {
-      statCacheTokens.textContent = formatTokenCount(usage.cacheReadTokens);
-    }
-
-    const activeName = usage.modelDisplayName || usage.model;
-    if (activeName && modelUsageLabel) {
-      modelUsageLabel.textContent = activeName;
-      if (!selectedModelId && usage.model) {
-        selectedModelId = usage.model;
-      }
-    }
-  }
-
-  async function loadAvailableModels() {
-    if (!modelList) return;
-    modelList.innerHTML = '<div class="model-loading">Carregando modelos...</div>';
-    try {
-      const res = await api('GET', '/api/models' + (activeTabId ? `?windowId=${encodeURIComponent(activeTabId)}` : ''));
-      if (res.ok && res.data && Array.isArray(res.data.models)) {
-        availableModels = res.data.models;
-        renderModelList();
-      } else {
-        modelList.innerHTML = '<div class="model-error">Falha ao obter lista de modelos.</div>';
-      }
-    } catch (_) {
-      modelList.innerHTML = '<div class="model-error">Erro de conexão ao buscar modelos.</div>';
-    }
-  }
-
-  function renderModelList() {
-    if (!modelList) return;
-    if (!availableModels || availableModels.length === 0) {
-      modelList.innerHTML = '<div class="model-empty">Nenhum modelo customizado retornado. Modelo padrão da IDE em uso.</div>';
-      return;
-    }
-    modelList.innerHTML = '';
-    availableModels.forEach((m) => {
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.className = 'model-item' + (selectedModelId === m.id ? ' selected' : '');
-      item.innerHTML = `
-        <div class="model-item-info">
-          <span class="model-item-title">${escapeHtml(m.displayName || m.id)}</span>
-          ${m.description ? `<span class="model-item-desc">${escapeHtml(m.description)}</span>` : ''}
-        </div>
-        <span class="model-item-radio"></span>
-      `;
-      item.addEventListener('click', () => {
-        selectedModelId = m.id;
-        localStorage.setItem('ag_remote_selected_model', m.id);
-        if (modelUsageLabel) {
-          modelUsageLabel.textContent = m.displayName || m.id;
-        }
-        renderModelList();
-        showToast(`Modelo selecionado: ${m.displayName || m.id}`);
-        if (navigator.vibrate) navigator.vibrate(30);
-        setTimeout(() => {
-          modelModal?.classList.add('hidden');
-        }, 220);
-      });
-      modelList.appendChild(item);
-    });
-  }
-
-  if (btnModelUsage) {
-    btnModelUsage.addEventListener('click', () => {
-      modelModal?.classList.remove('hidden');
-      loadAvailableModels();
-    });
-  }
-  if (btnCloseModelModal) {
-    btnCloseModelModal.addEventListener('click', () => {
-      modelModal?.classList.add('hidden');
-    });
-  }
-  if (modelModal) {
-    modelModal.addEventListener('click', (e) => {
-      if (e.target === modelModal) {
-        modelModal.classList.add('hidden');
-      }
-    });
   }
 
   // Tap statusBadge to reconnect when offline or disconnected
@@ -1502,7 +1389,7 @@
     while (el && (el === emptyState || el.id === 'chatTyping')) {
       el = el.previousElementSibling;
     }
-    if (el && el.classList.contains('chat-steps-group') && !el.classList.contains('finished')) {
+    if (el && el.classList.contains('chat-thinking-block') && !el.classList.contains('finished')) {
       return el;
     }
     return null;
@@ -1517,35 +1404,37 @@
 
     if (!group) {
       group = document.createElement('div');
-      group.className = 'chat-steps-group';
+      group.className = 'chat-thinking-block';
       group.dataset.stepCount = '0';
+      group.startTime = msg.ts || Date.now();
 
-      const summary = document.createElement('div');
-      summary.className = 'chat-steps-summary';
-      summary.title = 'Toque para ver o histórico de ações';
-      summary.innerHTML = `
-        <div class="chat-steps-left">
-          <span class="chat-steps-icon">
-            <span class="chat-steps-spinner"></span>
-          </span>
-          <span class="chat-steps-current-text"></span>
-          <span class="chat-steps-count-badge"></span>
-        </div>
-        <div class="chat-steps-chevron">
-          <svg viewBox="0 -960 960 960" width="16" height="16" fill="currentColor"><path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/></svg>
-        </div>
+      const header = document.createElement('div');
+      header.className = 'chat-thinking-header';
+      header.setAttribute('role', 'button');
+      header.setAttribute('tabindex', '0');
+      header.innerHTML = `
+        <span class="chat-thinking-title">Thinking</span>
+        <span class="chat-thinking-chevron">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 3.5l4 4.5-4 4.5"/>
+          </svg>
+        </span>
       `;
 
       const details = document.createElement('div');
-      details.className = 'chat-steps-details hidden';
+      details.className = 'chat-thinking-details hidden';
+      details.innerHTML = `
+        <div class="chat-thinking-list"></div>
+        <div class="chat-thinking-duration">Thinking</div>
+      `;
 
-      summary.addEventListener('click', () => {
+      header.addEventListener('click', () => {
         const isHidden = details.classList.contains('hidden');
         details.classList.toggle('hidden', !isHidden);
         group.classList.toggle('expanded', isHidden);
       });
 
-      group.appendChild(summary);
+      group.appendChild(header);
       group.appendChild(details);
 
       if (typing) {
@@ -1555,29 +1444,38 @@
       }
     }
 
-    const details = group.querySelector('.chat-steps-details');
-    const currentTextEl = group.querySelector('.chat-steps-current-text');
-    const countBadgeEl = group.querySelector('.chat-steps-count-badge');
+    const list = group.querySelector('.chat-thinking-list');
+    const titleEl = group.querySelector('.chat-thinking-title');
+    const durationEl = group.querySelector('.chat-thinking-duration');
 
     let count = parseInt(group.dataset.stepCount || '0', 10);
 
-    for (const line of lines) {
-      if (msg.id && details.querySelector(`[data-step-id="${msg.id}"]`)) {
+    for (const rawLine of lines) {
+      if (msg.id && list.querySelector(`[data-step-id="${msg.id}"]`)) {
         continue;
       }
       count++;
-      const lineEl = document.createElement('div');
-      lineEl.className = 'chat-step-line';
-      if (msg.id) lineEl.dataset.stepId = msg.id;
-      renderInline(lineEl, line);
-      details.appendChild(lineEl);
+      const item = document.createElement('div');
+      item.className = 'chat-thinking-item';
+      if (msg.id) item.dataset.stepId = msg.id;
+      renderInline(item, rawLine);
+      list.appendChild(item);
 
-      currentTextEl.innerHTML = '';
-      renderInline(currentTextEl, line);
+      // In real-time while running, show active line in title (like Screenshot 3)
+      titleEl.innerHTML = '';
+      let activeText = rawLine;
+      if (activeText.startsWith('Ran ')) {
+        activeText = activeText.replace(/^Ran\s+/, 'Running ').replace(/\s*›\s*$/, '');
+      } else if (activeText.startsWith('Analyzed ')) {
+        activeText = activeText.replace(/^Analyzed\s+/, 'Analyzing ');
+      }
+      renderInline(titleEl, activeText);
     }
 
     group.dataset.stepCount = String(count);
-    countBadgeEl.textContent = count > 1 ? `${count} ações` : '';
+
+    const elapsed = Math.max(1, Math.round((Date.now() - (group.startTime || Date.now())) / 1000));
+    durationEl.textContent = `Thinking for ${elapsed}s`;
 
     if (shouldScroll) scrollToBottom();
   }
@@ -1585,9 +1483,16 @@
   function markStepsGroupFinished(group) {
     if (!group || group.classList.contains('finished')) return;
     group.classList.add('finished');
-    const iconSpan = group.querySelector('.chat-steps-icon');
-    if (iconSpan) {
-      iconSpan.innerHTML = '<svg viewBox="0 -960 960 960" width="15" height="15" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>';
+    const titleEl = group.querySelector('.chat-thinking-title');
+    const durationEl = group.querySelector('.chat-thinking-duration');
+    const elapsed = Math.max(1, Math.round((Date.now() - (group.startTime || Date.now())) / 1000));
+
+    // When finished and collapsed: title shows "Thinking" (like Screenshot 1)
+    if (titleEl) {
+      titleEl.textContent = 'Thinking';
+    }
+    if (durationEl) {
+      durationEl.textContent = `Thinking for ${elapsed}s`;
     }
   }
 

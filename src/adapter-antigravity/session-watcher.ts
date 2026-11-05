@@ -510,22 +510,30 @@ export class SessionWatcher extends EventEmitter {
                 const args = tc.args || {};
                 const targetPath = args.Path ? String(args.Path).replace(/^"|"$/g, '') : '';
                 const fileName = targetPath ? path.basename(targetPath) : '';
+                const ext = path.extname(targetPath).toLowerCase();
+
+                let fileIcon = '📄';
+                if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext)) fileIcon = '🖼️';
+                else if (['.ts', '.tsx'].includes(ext)) fileIcon = '🟦';
+                else if (['.js', '.jsx'].includes(ext)) fileIcon = '🟨';
+                else if (ext === '.py') fileIcon = '🐍';
+                else if (['.json', '.md'].includes(ext)) fileIcon = '📝';
 
                 if (toolBaseName === 'read_file') {
                   const lineRange = args.StartLine && args.EndLine ? ` #L${args.StartLine}-${args.EndLine}` : '';
-                  stepActions.push(`📖 Lendo \`${fileName || targetPath}\`${lineRange}`);
+                  stepActions.push(`Analyzed ${fileIcon} \`${fileName || targetPath}\`${lineRange}`);
                 } else if (['edit_file', 'replace_file_content', 'multi_replace_file_content'].includes(toolBaseName)) {
-                  stepActions.push(`✏️ Editando \`${fileName || targetPath}\``);
+                  stepActions.push(`Edited ${fileIcon} \`${fileName || targetPath}\``);
                 } else if (['write_file', 'write_to_file'].includes(toolBaseName)) {
-                  stepActions.push(`📄 Criando \`${fileName || targetPath}\``);
+                  stepActions.push(`Created ${fileIcon} \`${fileName || targetPath}\``);
                 } else if (toolBaseName === 'run_command') {
                   const summary = args.toolSummary ? String(args.toolSummary).replace(/^"|"$/g, '') : '';
-                  const cmd = args.CommandLine ? String(args.CommandLine).replace(/^"|"$/g, '').slice(0, 50) : '';
-                  stepActions.push(`⚡ ${summary || `Executando: \`${cmd}\``}`);
+                  const cmd = args.CommandLine ? String(args.CommandLine).replace(/^"|"$/g, '').slice(0, 45) : '';
+                  stepActions.push(`Ran ${summary || `command \`${cmd}\``} ›`);
                 } else if (toolBaseName === 'search_web') {
-                  stepActions.push(`🔍 Pesquisando: "${args.query || ''}"`);
+                  stepActions.push(`Searched "${args.query || ''}" ›`);
                 } else if (toolBaseName !== 'ask_question') {
-                  stepActions.push(`⚙️ Ação: \`${toolBaseName}\``);
+                  stepActions.push(`Ran \`${toolBaseName}\` ›`);
                 }
               }
               if (stepActions.length > 0) {
