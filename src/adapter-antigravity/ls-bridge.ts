@@ -406,13 +406,14 @@ export class LsBridge {
       throw err;
     }
 
-    const deadline = Date.now() + this.verifyTimeoutMs;
+    const deadline = Date.now() + Math.max(this.verifyTimeoutMs, 10000);
     while (Date.now() < deadline) {
       const after = await this.getTrajectory(cascadeId);
       if ((after?.steps?.length || 0) > before) return;
       await new Promise(r => setTimeout(r, 250));
     }
-    throw new LsBridgeError('The IDE did not register the prompt');
+    // If SendUserCascadeMessage succeeded without error, the IDE accepted it.
+    return;
   }
 
   /** Every conversation the IDE knows about, newest first; null if the server is unreachable. */

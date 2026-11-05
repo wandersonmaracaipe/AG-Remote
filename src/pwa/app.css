@@ -1947,3 +1947,54 @@ body:has(.approval-card:not(.hidden)) .snackbar {
 .btn-msg-action.copied {
   color: var(--md-success);
 }
+
+/* Real-time agent action steps & typing indicator */
+.chat-step-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--md-on-surface-variant);
+  background: var(--md-surface-container);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--shape-medium);
+  padding: 8px 12px;
+  margin: 4px 0;
+  max-width: 92%;
+}
+.chat-step-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  word-break: break-word;
+  line-height: 1.4;
+}
+.chat-step-line code {
+  background: var(--md-surface-container-highest);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--md-primary);
+  font-family: monospace;
+}
+.chat-typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--md-primary);
+  padding: 6px 12px;
+  margin: 4px 0;
+  font-weight: 500;
+}
+.typing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--md-primary);
+  animation: pulse-dot 1.2s infinite ease-in-out;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}

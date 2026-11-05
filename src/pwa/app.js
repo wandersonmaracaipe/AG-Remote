@@ -225,8 +225,8 @@
   function showApprovalWait(code) {
     // The code gets its own large line so it is easy to compare with the PC's.
     pairHint.textContent = code
-      ? 'On your PC, click Allow. Your PC should show the same code:'
-      : 'On your PC, click Allow.';
+      ? 'No seu computador, clique em Permitir. O PC exibirá o mesmo código:'
+      : 'No seu computador, clique em Permitir.';
     pairCheckCode.textContent = code || '';
     pairCheckCode.classList.toggle('hidden', !code);
     pinLabel.classList.add('hidden');
@@ -699,6 +699,21 @@
     if (t) updateLastActive(t.status, t.lastActivity);
   }, 60000);
 
+  function renderTypingIndicator(status) {
+    let typing = document.getElementById('chatTyping');
+    if (status === 'generating') {
+      if (!typing) {
+        typing = document.createElement('div');
+        typing.id = 'chatTyping';
+        typing.className = 'chat-typing-indicator';
+        typing.innerHTML = '<span class="typing-dot"></span><span>Trabalhando...</span>';
+        chatFeed.appendChild(typing);
+      }
+    } else if (typing) {
+      typing.remove();
+    }
+  }
+
   function renderSnapshot(snapshot) {
     updateStatus(snapshot.status);
     updateLastActive(snapshot.status, snapshot.lastActivity);
@@ -708,10 +723,12 @@
     if (Array.isArray(snapshot.messages) && snapshot.messages.length > 0) {
       emptyState.classList.add('hidden');
       snapshot.messages.forEach(msg => appendChatMessage(msg, false));
-      scrollToBottom();
     } else {
       emptyState.classList.remove('hidden');
     }
+
+    renderTypingIndicator(snapshot.status);
+    scrollToBottom();
 
     if (snapshot.pendingApproval) {
       showApproval(snapshot.pendingApproval);
@@ -724,15 +741,16 @@
     statusBadge.setAttribute('data-status', status || 'disconnected');
     document.body.dataset.status = status || 'disconnected';
     const labels = {
-      'idle': 'Ready',
-      'generating': 'Working',
-      'awaiting_approval': 'Needs you',
-      'disconnected': 'Offline'
+      'idle': 'Pronto',
+      'generating': 'Trabalhando',
+      'awaiting_approval': 'Aguardando você',
+      'disconnected': 'Desconectado'
     };
     statusText.textContent = customText || labels[status] || status;
+    renderTypingIndicator(status);
 
     if (status === 'disconnected') {
-      statusBadge.title = 'Tap to reconnect';
+      statusBadge.title = 'Toque para reconectar';
       statusBadge.setAttribute('role', 'button');
       statusBadge.setAttribute('tabindex', '0');
     } else {
@@ -752,12 +770,12 @@
   function triggerReconnect() {
     const st = statusBadge.getAttribute('data-status');
     const txt = (statusText.textContent || '').trim().toLowerCase();
-    const canReconnect = st === 'disconnected' || txt === 'offline' || txt === 'disconnected' || txt === 'pc offline' || txt === 'connection error';
+    const canReconnect = st === 'disconnected' || txt === 'offline' || txt === 'disconnected' || txt === 'desconectado' || txt === 'pc offline' || txt === 'connection error';
     if (!canReconnect) return;
 
     if (navigator.vibrate) navigator.vibrate(30);
-    updateStatus('disconnected', 'Reconnecting...');
-    sessionLabel.textContent = 'Reconnecting...';
+    updateStatus('disconnected', 'Reconectando...');
+    sessionLabel.textContent = 'Reconectando...';
 
     if (relayMode && relay) {
       relay.restart();
@@ -782,7 +800,7 @@
   });
 
   // Clipboard helper
-  async function copyToClipboard(text, btn, feedbackText = 'Copied') {
+  async function copyToClipboard(text, btn, feedbackText = 'Copiado') {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
@@ -806,7 +824,7 @@
         }, 2000);
       }
     } catch (_) {
-      showToast('Could not copy to clipboard');
+      showToast('Não foi possível copiar para a área de transferência');
     }
   }
 
@@ -1235,13 +1253,27 @@
   }
 
   function buildChatMessageElement(msg) {
+    if (msg.role === 'step') {
+      const stepItem = document.createElement('div');
+      stepItem.className = 'chat-step-item';
+      stepItem.dataset.msgId = msg.id;
+      const lines = (msg.text || '').split('\n').filter(Boolean);
+      for (const line of lines) {
+        const lineEl = document.createElement('div');
+        lineEl.className = 'chat-step-line';
+        renderInline(lineEl, line);
+        stepItem.appendChild(lineEl);
+      }
+      return stepItem;
+    }
+
     const bubble = document.createElement('div');
     bubble.className = `chat-message ${msg.role === 'user' ? 'user' : 'agent'}`;
     bubble.dataset.msgId = msg.id;
 
     const author = document.createElement('div');
     author.className = 'chat-author';
-    author.textContent = msg.role === 'user' ? 'You' : 'Antigravity';
+    author.textContent = msg.role === 'user' ? 'Você' : 'Antigravity';
 
     const text = document.createElement('div');
     text.className = 'chat-text';
@@ -1254,7 +1286,7 @@
       for (const src of msg.images) {
         const img = document.createElement('img');
         img.src = src;
-        img.alt = 'Attached image';
+        img.alt = 'Imagem anexada';
         thumbs.appendChild(img);
       }
       bubble.appendChild(thumbs);
@@ -1267,11 +1299,11 @@
       const copyMsgBtn = document.createElement('button');
       copyMsgBtn.className = 'btn-msg-action';
       copyMsgBtn.type = 'button';
-      copyMsgBtn.title = 'Copy response';
-      copyMsgBtn.setAttribute('aria-label', 'Copy response');
-      copyMsgBtn.innerHTML = '<svg viewBox="0 -960 960 960" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg><span>Copy</span>';
+      copyMsgBtn.title = 'Copiar resposta';
+      copyMsgBtn.setAttribute('aria-label', 'Copiar resposta');
+      copyMsgBtn.innerHTML = '<svg viewBox="0 -960 960 960" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg><span>Copiar</span>';
       copyMsgBtn.addEventListener('click', () => {
-        copyToClipboard(msg.text, copyMsgBtn, 'Copied');
+        copyToClipboard(msg.text, copyMsgBtn, 'Copiado');
       });
       actions.appendChild(copyMsgBtn);
       bubble.appendChild(actions);
@@ -1284,7 +1316,12 @@
     emptyState.classList.add('hidden');
 
     const bubble = buildChatMessageElement(msg);
-    chatFeed.appendChild(bubble);
+    const typing = document.getElementById('chatTyping');
+    if (typing) {
+      chatFeed.insertBefore(bubble, typing);
+    } else {
+      chatFeed.appendChild(bubble);
+    }
 
     if (shouldScroll) scrollToBottom();
   }
@@ -1365,10 +1402,10 @@
     currentApproval = approval;
     const kindLabels = {
       run_command: 'Terminal',
-      ask_question: 'Question',
-      write_to_file: 'New file',
-      replace_file_content: 'File edit',
-      multi_replace_file_content: 'File edit'
+      ask_question: 'Pergunta',
+      write_to_file: 'Novo arquivo',
+      replace_file_content: 'Editar arquivo',
+      multi_replace_file_content: 'Editar arquivo'
     };
     approvalKind.textContent = kindLabels[approval.kind] || approval.kind;
 
@@ -1387,8 +1424,8 @@
       if (approvalDenyNote) approvalDenyNote.classList.add('hidden');
       if (approvalCwd) approvalCwd.classList.add('hidden');
       if (approvalIdeOnly) approvalIdeOnly.classList.add('hidden');
-      if (approvalBadge) approvalBadge.textContent = 'The agent has a question';
-      approvalDesc.textContent = formatInlineText(approval.question || approval.description || 'Please select an option:');
+      if (approvalBadge) approvalBadge.textContent = 'O agente tem uma pergunta';
+      approvalDesc.textContent = formatInlineText(approval.question || approval.description || 'Selecione uma opção:');
       approvalDetail.classList.add('hidden');
       approvalActions.classList.add('hidden');
       approvalOptions.classList.remove('hidden');
@@ -1424,7 +1461,7 @@
             btnSubmitChoice.disabled = false;
             const optFormatted = formatInlineText(optText);
             const preview = optFormatted.length > 25 ? optFormatted.slice(0, 25) + '...' : optFormatted;
-            btnSubmitChoice.textContent = `Submit: "${preview}"`;
+            btnSubmitChoice.textContent = `Confirmar: "${preview}"`;
           }
         });
         approvalOptions.appendChild(item);
@@ -1436,7 +1473,7 @@
 
       const btnSubmitChoice = document.createElement('button');
       btnSubmitChoice.className = 'btn btn-approve';
-      btnSubmitChoice.textContent = 'Submit answer';
+      btnSubmitChoice.textContent = 'Confirmar resposta';
       btnSubmitChoice.disabled = true;
       btnSubmitChoice.addEventListener('click', () => {
         if (selectedOptions.size > 0) {
@@ -1451,10 +1488,10 @@
       writeInBox.className = 'option-writein';
       const writeInInput = document.createElement('input');
       writeInInput.type = 'text';
-      writeInInput.placeholder = 'Or type your own reply';
+      writeInInput.placeholder = 'Ou digite sua própria resposta';
       const btnWriteInSubmit = document.createElement('button');
       btnWriteInSubmit.className = 'btn btn-always';
-      btnWriteInSubmit.textContent = 'Reply';
+      btnWriteInSubmit.textContent = 'Responder';
       const handleWriteIn = () => {
         const text = writeInInput.value.trim();
         if (text) submitApprovalResponse(text);
@@ -1474,15 +1511,15 @@
 
     } else {
       // Standard tool confirmation (e.g. run_command, write_to_file)
-      if (approvalBadge) approvalBadge.textContent = 'Permission needed';
-      approvalDesc.textContent = formatInlineText(approval.description || 'Pending confirmation');
+      if (approvalBadge) approvalBadge.textContent = 'Permissão necessária';
+      approvalDesc.textContent = formatInlineText(approval.description || 'Aguardando confirmação');
       approvalDetail.textContent = approval.detail || JSON.stringify(approval, null, 2);
       approvalDetail.classList.remove('hidden');
       approvalOptions.classList.add('hidden');
       approvalOptions.innerHTML = '';
       approvalActions.classList.remove('hidden');
       if (approvalCwd) {
-        approvalCwd.textContent = approval.cwd ? `in ${approval.cwd}` : '';
+        approvalCwd.textContent = approval.cwd ? `em ${approval.cwd}` : '';
         approvalCwd.classList.toggle('hidden', !approval.cwd);
       }
       // Only offer the options the IDE accepts for this request.
@@ -1524,9 +1561,9 @@
 
     try {
       const res = await api('POST', '/api/approve', withWindow({ id: approvalId, response: responseText }, tabId));
-      if (!res.ok) showToast(res.data.error || 'Failed to submit response');
+      if (!res.ok) showToast(res.data.error || 'Falha ao enviar resposta');
     } catch (err) {
-      showToast('Network error submitting response.');
+      showToast('Erro de rede ao enviar resposta.');
     }
   }
 
@@ -1747,11 +1784,11 @@
       const res = await api('POST', '/api/prompt', withWindow(body, tabId), sending.length ? 60000 : undefined);
       if (!res.ok) {
         failed = true;
-        showToast(res.data.error || 'Failed to send prompt');
+        showToast(res.data.error || 'Falha ao enviar mensagem');
       }
     } catch (err) {
       failed = true;
-      showToast('Network error sending prompt.');
+      showToast('Erro de rede ao enviar mensagem.');
     }
     // Give the images back so they can be resent, unless new ones were picked meanwhile
     if (failed && sending.length && attachments.length === 0) {
@@ -1784,18 +1821,18 @@
       }
       showToast(res.data.error || failMsg);
     } catch (err) {
-      showToast('Network error: nothing was sent to the IDE.');
+      showToast('Erro de rede: nada foi enviado à IDE.');
     }
     setApprovalBusy(false);
   }
 
   function approveCurrent(option = 'allow_once') {
-    return sendApprovalDecision('/api/approve', { option }, 'Failed to approve action');
+    return sendApprovalDecision('/api/approve', { option }, 'Falha ao aprovar ação');
   }
 
   function denyCurrent() {
     const reason = approvalDenyNote ? approvalDenyNote.value.trim() : '';
-    return sendApprovalDecision('/api/deny', reason ? { reason } : {}, 'Failed to deny action');
+    return sendApprovalDecision('/api/deny', reason ? { reason } : {}, 'Falha ao rejeitar ação');
   }
 
   async function stopCurrent() {
@@ -1803,12 +1840,12 @@
     try {
       const res = await api('POST', '/api/stop', withWindow({}));
       if (!res.ok) {
-        showToast(res.data.error || 'Failed to stop the agent.');
+        showToast(res.data.error || 'Falha ao parar o agente.');
         return;
       }
-      showToast('Stop sent to the IDE.');
+      showToast('Comando de parada enviado à IDE.');
     } catch (err) {
-      showToast('Network error: stop was not sent.');
+      showToast('Erro de rede: comando de parada não enviado.');
     }
   }
 
@@ -2342,7 +2379,7 @@
           const wItem = document.createElement('button');
           wItem.type = 'button';
           wItem.className = 'drawer-item ' + (isSelected ? 'active' : '');
-          wItem.innerHTML = '<span class="drawer-item-title">' + escapeHtml(w.workspaceName) + '</span><span class="drawer-item-badge">' + (isSelected ? 'Showing' : (w.isFocused ? 'Focused' : '')) + '</span>';
+          wItem.innerHTML = '<span class="drawer-item-title">' + escapeHtml(w.workspaceName) + '</span><span class="drawer-item-badge">' + (isSelected ? 'Ativa' : (w.isFocused ? 'Em Foco' : '')) + '</span>';
           wItem.addEventListener('click', async () => {
             closeDrawer();
             if (!tabs.has(w.windowId)) await resyncState();
@@ -2351,7 +2388,7 @@
           drawerWindowsList.appendChild(wItem);
         });
       } else {
-        drawerWindowsList.innerHTML = '<div class="drawer-item">No active IDE windows</div>';
+        drawerWindowsList.innerHTML = '<div class="drawer-item">Nenhuma janela ativa</div>';
       }
 
       // Render History / Conversations
@@ -2362,7 +2399,7 @@
           item.type = 'button';
           item.className = 'drawer-item ' + (s.isCurrent ? 'active' : '');
           const ago = formatTimeAgo(s.mtime);
-          item.innerHTML = '<span class="drawer-item-title">' + escapeHtml(s.title || 'Untitled conversation') + '</span><span class="drawer-item-badge">' + ago + '</span>';
+          item.innerHTML = '<span class="drawer-item-title">' + escapeHtml(s.title || 'Conversa sem título') + '</span><span class="drawer-item-badge">' + ago + '</span>';
           item.addEventListener('click', async () => {
             try {
               closeDrawer();
@@ -2371,16 +2408,16 @@
                 await fetchTabState(tabId).catch(() => {});
                 if (tabId === activeTabId) renderActiveTab();
               } else {
-                showToast('Could not switch to selected session');
+                showToast('Não foi possível alternar para a conversa');
               }
             } catch (_) {
-              showToast('Network error switching session');
+              showToast('Erro de rede ao alternar conversa');
             }
           });
           drawerHistoryList.appendChild(item);
         });
       } else {
-        drawerHistoryList.innerHTML = '<div class="drawer-item">No conversations yet</div>';
+        drawerHistoryList.innerHTML = '<div class="drawer-item">Nenhuma conversa recente</div>';
       }
     } catch (_) {
       drawerWindowsList.innerHTML = '<div class="drawer-item">Could not load windows</div>';

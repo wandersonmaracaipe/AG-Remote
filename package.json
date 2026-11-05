@@ -1,11 +1,11 @@
 {
   "name": "ag-remote",
   "displayName": "Antigravity Remote",
-  "description": "Control your Antigravity agent from your phone: approve or deny commands, send prompts and screenshots, stop runs and get notified, on any network with end-to-end encryption.",
-  "version": "0.3.2",
-  "publisher": "dr-opensource",
+  "description": "Controle o agente do Antigravity pelo celular: aprove ou rejeite comandos, envie prompts e prints, pause execuções e receba notificações na rede local.",
+  "version": "0.3.3",
+  "publisher": "wandersonmaracaipe",
   "icon": "assets/icon.png",
-  "author": "Dr. Shubham Kashyap",
+  "author": "Wanderson Maracaipe",
   "license": "MIT",
   "pricing": "Free",
   "type": "module",
@@ -57,9 +57,9 @@
     "test:browser": "playwright test"
   },
   "bugs": {
-    "url": "https://github.com/DrOpenSource/AG-Remote/issues"
+    "url": "https://github.com/wandersonmaracaipe/AG-Remote/issues"
   },
-  "homepage": "https://github.com/DrOpenSource/AG-Remote#readme",
+  "homepage": "https://github.com/wandersonmaracaipe/AG-Remote#readme",
   "devDependencies": {
     "@playwright/test": "^1.64.1",
     "@vscode/vsce": "^3.2.0",
@@ -69,24 +69,24 @@
     "commands": [
       {
         "command": "ag-remote.showPairingQr",
-        "title": "Antigravity Remote: Show Pairing QR Code",
+        "title": "Antigravity Remote: Exibir QR Code de Pareamento",
         "icon": "$(radio-tower)"
       },
       {
         "command": "ag-remote.revokePairings",
-        "title": "Antigravity Remote: Revoke All Pairings"
+        "title": "Antigravity Remote: Revogar Todos os Pareamentos"
       },
       {
         "command": "ag-remote.managePhones",
-        "title": "Antigravity Remote: Manage Paired Phones"
+        "title": "Antigravity Remote: Gerenciar Celulares Pareados"
       },
       {
         "command": "ag-remote.restartServer",
-        "title": "Antigravity Remote: Restart Server"
+        "title": "Antigravity Remote: Reiniciar Servidor"
       },
       {
         "command": "ag-remote.diagnostics",
-        "title": "Antigravity Remote: Copy Diagnostics"
+        "title": "Antigravity Remote: Copiar Diagnósticos"
       }
     ],
     "configuration": {
@@ -127,6 +127,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/DrOpenSource/AG-Remote"
+    "url": "https://github.com/wandersonmaracaipe/AG-Remote"
   }
 }

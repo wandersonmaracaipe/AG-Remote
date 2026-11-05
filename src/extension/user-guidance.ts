@@ -11,9 +11,9 @@ function palette(platform: string): string {
 /** "For best results" tips for the pairing panel. */
 export function bestResultsTips(platform: string): string[] {
   return [
-    `After installing or updating Antigravity Remote, reload every open Antigravity window (${palette(platform)} → Developer: Reload Window), or restart Antigravity. The phone talks to one window's copy of the extension, and a window that wasn't reloaded keeps the old version.`,
-    'Keep Antigravity open on this computer. The phone controls the agent running here; nothing runs on the phone.',
-    'Phone connected but no conversation? Open the project in Antigravity and start or continue a chat there. If it still shows nothing, run "Antigravity Remote: Copy Diagnostics" and include the report when you ask for help.'
+    `Após instalar ou atualizar o Antigravity Remote, recarregue a janela da IDE (${palette(platform)} → Developer: Reload Window), ou reinicie o Antigravity. O celular se comunica com a extensão ativa nesta janela.`,
+    'Mantenha o Antigravity aberto neste computador. O celular controla o agente que executa aqui; nenhum processamento pesado roda no celular.',
+    'Celular conectado mas sem conversa visível? Abra seu projeto no Antigravity e continue ou inicie um chat com o agente aqui na IDE.'
   ];
 }
 
@@ -23,5 +23,5 @@ export function bestResultsTips(platform: string): string[] {
  */
 export function updateNotice(previousVersion: string | undefined, currentVersion: string): string | null {
   if (!previousVersion || previousVersion === currentVersion) return null;
-  return `Antigravity Remote updated to ${currentVersion}. Reload every other open Antigravity window (Developer: Reload Window) so your phone uses the new version.`;
+  return `Antigravity Remote atualizado para ${currentVersion}. Recarregue as outras janelas do Antigravity (Developer: Reload Window) para aplicar a nova versão.`;
 }

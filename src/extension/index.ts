@@ -148,7 +148,7 @@ export async function activate(context: vscodeTypes.ExtensionContext): Promise<v
         showPairingPanel(vscode, {
           relayPairUrl: typeof relayPair === 'string' ? relayPair : relayPair?.url,
           relayCode: typeof relayPair === 'object' ? relayPair?.code : undefined,
-          wifi: wifiOn ? pairingManager.createPairingSession() : undefined,
+          wifi: wifiOn ? pairingManager.createPairingSession(host !== '0.0.0.0' && host !== '127.0.0.1' ? host : undefined) : undefined,
           paired
         });
         return;
@@ -426,7 +426,7 @@ function showPairingPanel(vscode: typeof vscodeTypes, opts: { relayPairUrl?: str
   } else {
     pairingPanel = vscode.window.createWebviewPanel(
       'agRemotePairing',
-      'Pair Phone - AG-Remote',
+      'Parear Celular - Antigravity Remote',
       vscode.ViewColumn.Beside,
       // Command links only, no scripts: "Manage" opens the unpair picker, Allow / Deny answer a waiting phone.
       { enableScripts: false, enableCommandUris: ['ag-remote.managePhones', 'ag-remote.answerPhone'] }
@@ -513,21 +513,21 @@ function wifiPanelHtml(pairing: PairingInfo): string {
   </style>
 </head>
 <body>
-  <h2>Pair Your Phone</h2>
-  <p>Scan this QR code with your phone camera to connect directly to your Antigravity agent.</p>
-  <div class="badge">⏱️ One-Time Code: Expires in 5 minutes</div>
+  <h2>Parear seu Celular</h2>
+  <p>Escaneie este código QR com a câmera do celular para conectar diretamente ao seu agente do Antigravity.</p>
+  <div class="badge">⏱️ Código Temporário: Expira em 5 minutos</div>
   <div class="qr-box">
     ${pairing.svgQr}
   </div>
   <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 12px 16px; margin: 0 auto 16px auto; max-width: 280px;">
-    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; font-weight: 600; margin-bottom: 4px;">6-Digit Pairing PIN</div>
+    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; font-weight: 600; margin-bottom: 4px;">PIN de 6 Dígitos</div>
     <div style="font-family: monospace; font-size: 26px; letter-spacing: 4px; color: #38bdf8; font-weight: 800;">${pairing.pairingCode.slice(0, 3)} ${pairing.pairingCode.slice(3)}</div>
   </div>
   <div>
     <div class="url-box">${pairing.url}</div>
   </div>
   <p style="font-size: 11px; color: #64748b;">
-    Connected via local Wi-Fi or Tailscale. No data leaves your machine.
+    Conectado diretamente via rede local (Wi-Fi). Nenhum dado sai do seu computador.
   </p>
   ${tipsHtml()}
 </body>
@@ -541,7 +541,7 @@ function escapeHtml(s: string): string {
 /** "For best results" box shared by both pairing panels. */
 function tipsHtml(): string {
   return `<div class="tips">
-    <p><strong>For best results</strong></p>
+    <p><strong>Dicas Importantes</strong></p>
     <ul>${bestResultsTips(process.platform).map((t) => `<li>${escapeHtml(t)}</li>`).join('')}</ul>
   </div>`;
 }

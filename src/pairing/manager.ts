@@ -22,27 +22,26 @@ export class PairingManager {
 
   public getLocalIps(): string[] {
     const interfaces = os.networkInterfaces();
-    const ips: string[] = [];
-
-    // Prioritize Tailscale IP (starts with 100.)
-    let tailscaleIp: string | null = null;
+    const tailscaleIps: string[] = [];
+    const lanIps: string[] = [];
+    const otherIps: string[] = [];
 
     for (const name of Object.keys(interfaces)) {
+      const isVirtualOrVpn = /radmin|hamachi|vpn|virtual|wsl|hyper-v|teredo/i.test(name);
       for (const iface of interfaces[name] || []) {
         if (iface.family === 'IPv4' && !iface.internal) {
           if (iface.address.startsWith('100.')) {
-            tailscaleIp = iface.address;
+            tailscaleIps.push(iface.address);
+          } else if (iface.address.startsWith('192.168.') || (!isVirtualOrVpn && (iface.address.startsWith('10.') || iface.address.startsWith('172.')))) {
+            lanIps.push(iface.address);
           } else {
-            ips.push(iface.address);
+            otherIps.push(iface.address);
           }
         }
       }
     }
 
-    if (tailscaleIp) {
-      ips.unshift(tailscaleIp);
-    }
-
+    const ips = [...tailscaleIps, ...lanIps, ...otherIps];
     if (ips.length === 0) {
       ips.push('127.0.0.1');
     }

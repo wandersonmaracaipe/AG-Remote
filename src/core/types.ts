@@ -7,7 +7,7 @@ export type SessionStatus = 'idle' | 'generating' | 'awaiting_approval' | 'disco
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'agent';
+  role: 'user' | 'agent' | 'step';
   text: string;
   ts: number;
 }

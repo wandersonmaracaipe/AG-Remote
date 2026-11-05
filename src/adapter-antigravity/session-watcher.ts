@@ -411,6 +411,39 @@ export class SessionWatcher extends EventEmitter {
                 text: content,
                 ts
               });
+            } else if (Array.isArray(step.tool_calls) && step.tool_calls.length > 0) {
+              const stepActions: string[] = [];
+              for (const tc of step.tool_calls) {
+                const toolBaseName = tc.name.includes(':') ? tc.name.split(':').pop()! : tc.name;
+                const args = tc.args || {};
+                const targetPath = args.Path ? String(args.Path).replace(/^"|"$/g, '') : '';
+                const fileName = targetPath ? path.basename(targetPath) : '';
+
+                if (toolBaseName === 'read_file') {
+                  const lineRange = args.StartLine && args.EndLine ? ` #L${args.StartLine}-${args.EndLine}` : '';
+                  stepActions.push(`📖 Lendo \`${fileName || targetPath}\`${lineRange}`);
+                } else if (['edit_file', 'replace_file_content', 'multi_replace_file_content'].includes(toolBaseName)) {
+                  stepActions.push(`✏️ Editando \`${fileName || targetPath}\``);
+                } else if (['write_file', 'write_to_file'].includes(toolBaseName)) {
+                  stepActions.push(`📄 Criando \`${fileName || targetPath}\``);
+                } else if (toolBaseName === 'run_command') {
+                  const summary = args.toolSummary ? String(args.toolSummary).replace(/^"|"$/g, '') : '';
+                  const cmd = args.CommandLine ? String(args.CommandLine).replace(/^"|"$/g, '').slice(0, 50) : '';
+                  stepActions.push(`⚡ ${summary || `Executando: \`${cmd}\``}`);
+                } else if (toolBaseName === 'search_web') {
+                  stepActions.push(`🔍 Pesquisando: "${args.query || ''}"`);
+                } else if (toolBaseName !== 'ask_question') {
+                  stepActions.push(`⚙️ Ação: \`${toolBaseName}\``);
+                }
+              }
+              if (stepActions.length > 0) {
+                messages.push({
+                  id: `step-${step.step_index}`,
+                  role: 'step',
+                  text: stepActions.join('\n'),
+                  ts
+                });
+              }
             }
 
             // Check tool calls
